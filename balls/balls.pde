@@ -1,25 +1,37 @@
 #include <TVout.h>
 #include <fontALL.h>
 
-
 TVout TV;
+
+struct Point
+{
+  int x,y;
+};
 
 struct Ball
 {
- uint8_t r;
- uint8_t x;
- uint8_t y;
- int dx;
- int dy;
- 
+ int r;
+ Point c;
+ Point v;
 };
 Ball ball;
 
 struct Paddle
 {
-  int x, y, dy,l;
+  int   l; // length
+  Point t; // top
+  Point v; // velocity
 };
 Paddle paddle;
+
+struct Screen
+{
+  Point top_left;
+  Point bot_right;
+  Point c;
+};
+Screen screen;
+
 bool pause;
 int fps;
 int count;
@@ -32,96 +44,120 @@ void setup() {
   TV.delay(1000);
   TV.clear_screen();
   
+  fps          = 1; 
+  ball.c.x     = TV.hres()/2; // 60
+  ball.c.y     = TV.vres()/2; // 48
+  ball.v.x     = 1;
+  ball.v.y     = 1; 
+  ball.r       = 2;
+ 
+  paddle.t.x   = 3; 
+  paddle.t.y   = 6;
+  paddle.v.y   = 0;
+  paddle.l     = 10;
   
- ball.x = TV.hres()/2; // 60
- ball.y = TV.vres()/2; // 48
- ball.dx = 1;
- ball.dy = 1;
- fps = 1; 
- ball.r = 2;
- paddle.x = 3; 
- paddle.dy = 0;
- paddle.y = 6;
- paddle.l = 10;
- Serial.begin(9600);
- pause = false;
+  screen.top_left.x = 0;
+  screen.top_left.y = 5;
+  screen.bot_right.x = TV.hres();
+  screen.bot_right.y = TV.vres();
+  screen.c.x = TV.hres()/2;
+  screen.c.y = TV.vres()/2;
+  
+  Serial.begin(9600);
+  pause = false;
 }
 
-char buff[50];
-char c_buff[50];
+char buff[10];
 
 void print_ball()
 {
  // sprintf(buff, "x(%d) y(%d) r(%d) px(%d) py(%d) s(%d) \n",ball.x,(int)ball.y,(int)ball.r,paddle.x, paddle.y, count);
-  sprintf(buff,"%d Score ",count);
-  TV.println(buff);
+  //sprintf(buff,"%d%d",count%10,count - count%10);
+  //TV.print(0,1,count%10,DEC);
+  //TV.print(count - 10*(count%10),DEC);
+ TV.println("Hello World");
  // Serial.println(buff);
 }
 
 void check_collision()
 {
-    if( ball.x  >= uint8_t((int)TV.hres()-(int)ball.r) )
-    {
-        ball.dx = -ball.dx;
-        ball.x  = uint8_t((int)TV.hres()-(int)ball.r) - 1;
-    }
-    if( ball.y >= uint8_t((int)TV.vres()-(int)ball.r) )
-    {
-        ball.dy = -ball.dy;
-        ball.y = uint8_t((int)TV.vres()-(int)ball.r) - 1;
-    }
-    if( ( (int)ball.x + (int)(fps*ball.dx) ) < (paddle.x + (int)ball.r) ) 
-    {
-      if( (int)ball.y >= paddle.y && (int)ball.y <= paddle.y + paddle.l )
-      {
-   //     Serial.println("BOUNCE");
-        ball.dx = -ball.dx;
-        ball.x = ball.r + paddle.x + 1;
-      }
-      else
-      {
-   //     Serial.println("SCORE");
-        ball.dx = 1;
-        ball.dy = 1;
-        ball.x = TV.hres()/2;
-        ball.y = TV.vres()/2;
-        count += 1;
-      } 
-    }
-    if( (int)ball.y + (int)(fps*ball.dy )< (int)ball.r)
-    {
-     //   Serial.println((int)(fps*ball.dy ),DEC);
-     //   Serial.println((int)ball.y + (int)(fps*ball.dy ),DEC);
-        ball.dy = -ball.dy;
-        ball.y = ball.r + 1;
-    }
+  Ball ball_next;
+  ball_next.c.x = ball.c.x + fps*ball.v.x;
+  ball_next.c.y = ball.c.y + fps*ball.v.y;
+  
+  int ball_left_edge  = ball_next.c.x - ball.r;
+  int ball_right_edge = ball_next.c.x + ball.r;
+  int ball_top_edge   = ball_next.c.y - ball.r;
+  int ball_bot_edge   = ball_next.c.y + ball.r;
+
+  // hit the left paddle
+  if( (ball_left_edge <= paddle.t.x) &&
+      ( ball_bot_edge <= (paddle.t.y+paddle.l) &&
+        ball_top_edge >= paddle.t.y ) )
+  {
+    ball.v.x = -ball.v.x;
+    ball.v.y = -ball.v.y;
+    return;
+  }
+  
+  // hit the left edge of screen
+  if( ball_left_edge <= 0 )
+  {
+    count += 1;
+    ball.c = screen.c;
+    ball.v.x = 1;
+    ball.v.y = 1;
+    return;
+  }
+
+  // ball hit the top edge of screen
+  if( ball_top_edge <= screen.top_left.y )
+  {
+    ball.v.y = -ball.v.y;
+    return;
+  }
+  
+  // ball hit the bot edge of screen
+  if( ball_bot_edge >= screen.bot_right.y )
+  {
+    ball.v.y = -ball.v.y;
+    return;
+  }
+  
+  // ball hit the right edge of screen
+  if( ball_right_edge >= screen.bot_right.x )
+  {
+    ball.v.x = -ball.v.x;
+    return;
+  }
+
 }
 
 void update_position()
 {
-  ball.x = uint8_t((int)ball.x + ball.dx*fps);
-  ball.y = uint8_t((int)ball.y + ball.dy*fps);
-
+  ball.c.x += ball.v.x*fps;
+  ball.c.y += ball.v.y*fps;
 }
  
 void loop(){
-  TV.clear_screen();
-  TV.draw_circle(ball.x,ball.y,ball.r,WHITE);
-  TV.draw_line(paddle.x,paddle.y,paddle.x,paddle.y+paddle.l,WHITE);
+  
+  TV.draw_circle(ball.c.x,ball.c.y,ball.r,WHITE);
+  TV.draw_line(paddle.t.x,paddle.t.y,paddle.t.x,paddle.t.y+paddle.l,WHITE);
   print_ball();
   TV.delay(10);  
-
+  TV.clear_screen();
+  
   bool step_pause = false;
   if(Serial.available())
   {
     char k = (char)Serial.read();
     if( k == 'k' )
     {
-      paddle.dy = -3;
+      paddle.v.y = -3;
     }
     else if( k == 'j' )
     {
-      paddle.dy = 3;
+      paddle.v.y = 3;
     }
     else if ( k == 's' )
     {
@@ -135,16 +171,16 @@ void loop(){
   }  
   else
   {
-    paddle.dy = 0;
+    paddle.v.y = 0;
   }
   
   if( !pause || step_pause)
   {
-  update_position();
-  step_pause = false;
+    update_position();
+    step_pause = false;
   }
 
-  paddle.y += paddle.dy;  
+  paddle.t.y += paddle.v.y;  
   
   check_collision();
 }
