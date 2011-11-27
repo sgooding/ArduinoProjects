@@ -22,7 +22,7 @@ struct Paddle
   Point t; // top
   Point v; // velocity
 };
-Paddle paddle;
+Paddle paddle,paddle2;
 
 struct Screen
 {
@@ -34,7 +34,8 @@ Screen screen;
 
 bool pause;
 int fps;
-int count;
+int count,count2;
+int score_delay_count;
 void setup() {
   TV.begin(NTSC,120,96);
   TV.select_font(font4x6);
@@ -43,6 +44,14 @@ void setup() {
   TV.println("\nBy Sean Gooding");
   TV.delay(1000);
   TV.clear_screen();
+  
+  
+  screen.top_left.x = 0;
+  screen.top_left.y = 5;
+  screen.bot_right.x = TV.hres();
+  screen.bot_right.y = TV.vres();
+  screen.c.x = TV.hres()/2;
+  screen.c.y = TV.vres()/2;
   
   fps          = 1; 
   ball.c.x     = TV.hres()/2; // 60
@@ -56,27 +65,21 @@ void setup() {
   paddle.v.y   = 0;
   paddle.l     = 10;
   
-  screen.top_left.x = 0;
-  screen.top_left.y = 5;
-  screen.bot_right.x = TV.hres();
-  screen.bot_right.y = TV.vres();
-  screen.c.x = TV.hres()/2;
-  screen.c.y = TV.vres()/2;
+  paddle2      = paddle;
+  paddle2.t.x  = screen.bot_right.x - 3;
+  
+  score_delay_count = 100;
   
   Serial.begin(9600);
   pause = false;
 }
 
-char buff[10];
-
-void print_ball()
+int random_dir()
 {
- // sprintf(buff, "x(%d) y(%d) r(%d) px(%d) py(%d) s(%d) \n",ball.x,(int)ball.y,(int)ball.r,paddle.x, paddle.y, count);
-  //sprintf(buff,"%d%d",count%10,count - count%10);
-  //TV.print(0,1,count%10,DEC);
-  //TV.print(count - 10*(count%10),DEC);
- TV.println("Hello World");
- // Serial.println(buff);
+  int val = random(0,2);
+  if( val == 0 )
+    return -1;
+  return val;
 }
 
 void check_collision()
@@ -96,7 +99,36 @@ void check_collision()
         ball_top_edge >= paddle.t.y ) )
   {
     ball.v.x = -ball.v.x;
-    ball.v.y = -ball.v.y;
+    if( ball_next.c.y >= (paddle.t.y+3) &&
+        ball_next.c.y <= (paddle.t.y+paddle.l-3) )
+    {
+      ball.v.y = 1;
+    }
+    else
+    {
+      ball.v.y = 2;
+    }
+    
+    return;
+  }
+  
+  // hit the right paddle
+  if( (ball_right_edge >= paddle2.t.x) &&
+      ( ball_bot_edge <= (paddle2.t.y+paddle2.l) &&
+        ball_top_edge >= paddle2.t.y ) )
+  {
+    ball.v.x = -ball.v.x;
+
+    if( ball_next.c.y >= (paddle.t.y+3) &&
+        ball_next.c.y <= (paddle.t.y+paddle.l-3) )
+    {
+      ball.v.y = 1;
+    }
+    else
+    {
+      ball.v.y = 2;
+    }
+    
     return;
   }
   
@@ -105,10 +137,23 @@ void check_collision()
   {
     count += 1;
     ball.c = screen.c;
-    ball.v.x = 1;
-    ball.v.y = 1;
+    ball.v.x = random_dir();
+    ball.v.y = random_dir();
+    score_delay_count = 100;
     return;
   }
+  
+  // hit the right edge of screen
+  if( ball_right_edge >= screen.bot_right.x )
+  {
+    count2 += 1;
+    ball.c = screen.c;
+    ball.v.x = random_dir();
+    ball.v.y = random_dir();
+    score_delay_count = 100;
+    return;
+  }
+  
 
   // ball hit the top edge of screen
   if( ball_top_edge <= screen.top_left.y )
@@ -124,12 +169,6 @@ void check_collision()
     return;
   }
   
-  // ball hit the right edge of screen
-  if( ball_right_edge >= screen.bot_right.x )
-  {
-    ball.v.x = -ball.v.x;
-    return;
-  }
 
 }
 
@@ -138,26 +177,62 @@ void update_position()
   ball.c.x += ball.v.x*fps;
   ball.c.y += ball.v.y*fps;
 }
+
+void draw_screen()
+{
+  TV.draw_circle(ball.c.x,ball.c.y,ball.r,WHITE,WHITE);
+  TV.draw_line(paddle.t.x,paddle.t.y,paddle.t.x,paddle.t.y+paddle.l,WHITE);
+  TV.draw_line(paddle2.t.x,paddle2.t.y,paddle2.t.x,paddle2.t.y+paddle2.l,WHITE);
+  
+  if( score_delay_count < 100 && score_delay_count > 66 )
+  {
+    TV.printPGM(screen.c.x-8,0,PSTR("Ready..."));
+  } else if( score_delay_count <= 66 && score_delay_count > 33 )
+  {
+    TV.printPGM(screen.c.x-8,0,PSTR("Set....."));    
+  } else if( score_delay_count <= 33 && score_delay_count > 1 )
+  {
+    TV.printPGM(screen.c.x-6,0,PSTR("GO!!"));
+  }
+  
+  
+  TV.print(0,0,count,DEC);
+  TV.print(screen.bot_right.x-10,0,count2,DEC);
+}
+
+void blank_screen()
+{
+  TV.draw_line(paddle.t.x,paddle.t.y,paddle.t.x,paddle.t.y+paddle.l,BLACK);
+  TV.draw_line(paddle2.t.x,paddle2.t.y,paddle2.t.x,paddle2.t.y+paddle2.l,BLACK);
+  TV.draw_circle(ball.c.x,ball.c.y,ball.r,BLACK,BLACK);
+  TV.draw_rect(0,0,screen.bot_right.x,8,BLACK,BLACK);
+}
  
 void loop(){
-  
-  TV.draw_circle(ball.c.x,ball.c.y,ball.r,WHITE);
-  TV.draw_line(paddle.t.x,paddle.t.y,paddle.t.x,paddle.t.y+paddle.l,WHITE);
-  print_ball();
-  TV.delay(10);  
-  TV.clear_screen();
-  
+
+  draw_screen();
+  TV.delay(10); 
+  blank_screen(); 
+ 
   bool step_pause = false;
   if(Serial.available())
   {
     char k = (char)Serial.read();
-    if( k == 'k' )
+    if( k == 'q' )
     {
       paddle.v.y = -3;
     }
-    else if( k == 'j' )
+    else if( k == 'a' )
     {
       paddle.v.y = 3;
+    }
+    else if( k == 'o' )
+    {
+      paddle2.v.y = -3;
+    }
+    else if( k == 'l' )
+    {
+      paddle2.v.y = 3;
     }
     else if ( k == 's' )
     {
@@ -172,16 +247,25 @@ void loop(){
   else
   {
     paddle.v.y = 0;
+    paddle2.v.y = 0;
   }
   
   if( !pause || step_pause)
   {
-    update_position();
+    if( score_delay_count == 0 )
+    {
+      update_position();
+    } else 
+    {
+      score_delay_count--;
+    }
     step_pause = false;
   }
 
   paddle.t.y += paddle.v.y;  
-  
+  paddle2.t.y += paddle2.v.y;
+  paddle.t.y = constrain(paddle.t.y,screen.top_left.y,screen.bot_right.y-paddle.l);
+  paddle2.t.y = constrain(paddle2.t.y,screen.top_left.y,screen.bot_right.y-paddle2.l);
   check_collision();
 }
 
