@@ -135,7 +135,7 @@ void check_collision()
   // hit the left edge of screen
   if( ball_left_edge <= 0 )
   {
-    count += 1;
+    count2 += 1;
     ball.c = screen.c;
     ball.v.x = random_dir();
     ball.v.y = random_dir();
@@ -146,7 +146,7 @@ void check_collision()
   // hit the right edge of screen
   if( ball_right_edge >= screen.bot_right.x )
   {
-    count2 += 1;
+    count += 1;
     ball.c = screen.c;
     ball.v.x = random_dir();
     ball.v.y = random_dir();
